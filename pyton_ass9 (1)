@@ -1,0 +1,149 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
+def process(file_path):
+    with open(file_path, 'r') as f:
+        content = f.read()
+        lines = content.split("\n")
+        lines.pop()
+    l = []
+    for i in lines:
+        a = i.split(",")
+        for j in range(len(a)):
+            a[j] = int(a[j])
+        l.append(a)
+
+    ll = []
+    for i in range(80):
+        ll.append([])
+
+    for i in range(80):
+        aa = []
+        for j in range(1024):
+            aa.append(l[j][i])
+        ll[i] = aa
+    return ll
+
+dog_path = r"C:\Users\kutra\Downloads\dogData.txt" 
+cat_path = r"C:\Users\kutra\Downloads\catData.txt"
+
+l1 = process(cat_path)
+l2 = process(dog_path)
+
+cat_data = torch.tensor(l1, dtype=torch.float32)
+dog_data = torch.tensor(l2, dtype=torch.float32)
+
+cat_labels = torch.zeros(cat_data.size(0), 1)
+dog_labels = torch.ones(dog_data.size(0), 1)
+
+X = torch.cat((cat_data, dog_data), dim=0)
+y = torch.cat((cat_labels, dog_labels), dim=0)
+
+X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+class OneLayerNN(nn.Module):
+    def __init__(self, activation_fn):
+        super(OneLayerNN, self).__init__()
+        self.fc = nn.Linear(1024, 1)
+        self.activation_fn = activation_fn
+
+    def forward(self, x):
+        x = self.fc(x)
+        return torch.sigmoid(x)
+
+class TwoLayerNN(nn.Module):
+    def __init__(self, activation_fn):
+        super(TwoLayerNN, self).__init__()
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 1)
+        self.activation_fn = activation_fn
+
+    def forward(self, x):
+        x = self.activation_fn(self.fc1(x))
+        x = self.fc2(x)
+        return torch.sigmoid(x)
+
+class ThreeLayerNN(nn.Module):
+    def __init__(self, activation_fn):
+        super(ThreeLayerNN, self).__init__()
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 1)
+        self.activation_fn = activation_fn
+
+    def forward(self, x):
+        x = self.activation_fn(self.fc1(x))
+        x = self.activation_fn(self.fc2(x))
+        x = self.fc3(x)
+        return torch.sigmoid(x)
+
+class FourLayerNN(nn.Module):
+    def __init__(self, activation_fn):
+        super(FourLayerNN, self).__init__()
+        self.fc1 = nn.Linear(1024, 512)
+        self.fc2 = nn.Linear(512, 256)
+        self.fc3 = nn.Linear(256, 128)
+        self.fc4 = nn.Linear(128, 1)
+        self.activation_fn = activation_fn
+
+    def forward(self, x):
+        x = self.activation_fn(self.fc1(x))
+        x = self.activation_fn(self.fc2(x))
+        x = self.activation_fn(self.fc3(x))
+        x = self.fc4(x)
+        return torch.sigmoid(x)
+
+def train_and_evaluate(model, X_train, y_train, X_val, y_val, epochs=50):
+    criterion = nn.BCELoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    
+    train_losses = []
+    val_losses = []
+    
+    for epoch in range(epochs):
+        model.train()
+        outputs = model(X_train.view(-1, 1024))
+        loss = criterion(outputs, y_train.view(-1, 1))
+        
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        train_losses.append(loss.item())
+        
+        model.eval()
+        with torch.no_grad():
+            val_outputs = model(X_val.view(-1, 1024))
+            val_loss = criterion(val_outputs, y_val.view(-1, 1))
+            val_losses.append(val_loss.item())
+    
+    return train_losses, val_losses
+
+activation_functions = {
+    "Tanh": nn.Tanh(),
+    "ReLU": nn.ReLU(),
+    "LeakyReLU": nn.LeakyReLU(),
+    "Sigmoid": nn.Sigmoid()
+}
+
+for activation_name, activation_fn in activation_functions.items():
+    for layer_type in [OneLayerNN, TwoLayerNN, ThreeLayerNN, FourLayerNN]:
+        model = layer_type(activation_fn)
+        
+        train_loss, val_loss = train_and_evaluate(model, X_train, y_train, X_val, y_val, epochs=50)
+        
+        # Create a new figure for each model/activation combination
+        plt.figure(figsize=(10, 6))
+        plt.plot(train_loss, label='Train Loss')
+        plt.plot(val_loss, label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.title(f'Training and Validation Loss for {layer_type.__name__} with {activation_name} Activation', fontsize=16)
+        plt.legend()
+        plt.grid(True)
+        plt.show()  # Display each plot immediately
+
+
